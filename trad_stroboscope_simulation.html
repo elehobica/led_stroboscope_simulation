@@ -1,0 +1,601 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LED Stroboscope Principle</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/tabler-icons/2.47.0/tabler-icons.min.css">
+<style>
+  :root{
+    --color-text-primary:#1a1a1a;
+    --color-text-secondary:#555;
+    --color-background-primary:#ffffff;
+    --color-background-secondary:#ffffff;
+    --color-background-info:#e6f1fb;
+    --color-background-success:#e1f5ee;
+    --color-background-warning:#faeeda;
+    --color-background-danger:#fcebeb;
+    --color-text-info:#185fa5;
+    --color-text-success:#0f6e56;
+    --color-text-warning:#854f0b;
+    --color-text-danger:#a32d2d;
+    --border-radius-md:6px;
+    --border-radius-lg:10px;
+  }
+  html,body{margin:0;padding:0;background:#f4f3ee;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;}
+  .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);border:0;}
+  button{font-family:inherit;font-size:13px;padding:6px 12px;border:1px solid #c9c7be;
+    background:#fff;border-radius:6px;cursor:pointer;color:#1a1a1a;}
+  button:hover{background:#f0efe9;}
+  button[aria-pressed="true"]{background:#e8e6dd;border-color:#9a988e;}
+</style>
+</head>
+<body>
+<h2 class="sr-only">Animation of an LED stroboscope with five scenes.</h2>
+<div id="strobeRoot" style="display:flex; flex-direction:column; gap:8px; box-sizing:border-box; padding:8px;">
+  <div id="canvasWrap" style="display:flex; align-items:center; justify-content:center; min-height:0; min-width:0; overflow:hidden;">
+    <canvas id="strobeCanvas" width="660" height="450" style="display:block; max-width:100%; max-height:100%; width:auto; height:auto; border-radius:var(--border-radius-lg); background:var(--color-background-secondary);"></canvas>
+  </div>
+
+  <div id="rowScenes" style="flex:0 0 auto; display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+    <button id="scene1Btn" class="sceneBtn">Scene 1</button>
+    <button id="scene2Btn" class="sceneBtn">Scene 2</button>
+    <button id="scene3Btn" class="sceneBtn">Scene 3</button>
+    <button id="scene4Btn" class="sceneBtn">Scene 4</button>
+    <button id="scene5Btn" class="sceneBtn">Scene 5</button>
+  </div>
+
+  <div id="rowDesc" style="flex:0 0 auto; display:flex; flex-direction:column; gap:6px;">
+    <div style="display:flex; align-items:center; gap:10px;">
+      <span id="sceneLabel" style="font-size:15px; font-weight:500; color:var(--color-text-primary);">Scene 2 — Strobe flashing</span>
+      <span id="sceneStatus" style="font-size:13px; padding:3px 10px; border-radius:var(--border-radius-md);">—</span>
+    </div>
+    <p id="sceneDesc" style="margin:0; font-size:14px; line-height:1.6; color:var(--color-text-secondary);"></p>
+  </div>
+
+  <div id="rowControls" style="flex:0 0 auto; display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+    <button id="playBtn" style="display:inline-flex; align-items:center; gap:6px;"><i class="ti ti-player-play" aria-hidden="true"></i><span id="playLabel">Play</span></button>
+    <button id="stepBtn" style="display:inline-flex; align-items:center; gap:6px;"><i class="ti ti-player-track-next" aria-hidden="true"></i>&gt;|</button>
+    <button id="resetBtn" style="display:inline-flex; align-items:center; gap:6px;"><i class="ti ti-player-skip-back" aria-hidden="true"></i>Reset</button>
+    <span id="frameInfo" style="font-size:13px; color:var(--color-text-secondary); font-variant-numeric:tabular-nums;">frame 0</span>
+    <button id="trailBtn" style="display:inline-flex; align-items:center; gap:6px; margin-left:auto;"><i class="ti ti-ghost" aria-hidden="true"></i><span id="trailLabel">Afterimage: ON</span></button>
+  </div>
+</div>
+
+<script>
+(function(){
+  const canvas = document.getElementById('strobeCanvas');
+  const ctx = canvas.getContext('2d');
+  const W = 660, H = 450;
+
+  const root = document.getElementById('strobeRoot');
+  const canvasWrap = document.getElementById('canvasWrap');
+
+  const css = getComputedStyle(document.documentElement);
+  function v(name, fb){ const x = css.getPropertyValue(name).trim(); return x || fb; }
+  const colText = v('--color-text-primary', '#1a1a1a');
+  const colSub  = v('--color-text-secondary', '#666');
+  const isDark  = (function(){ const c=v('--color-background-primary','#fff'); return /^#?(0|1|2|3)/.test(c.replace('#','')); })();
+
+  const discR = 150;
+  const cx = 200, cy = 235;
+  const ledX = 470, ledY = 100;
+
+  const FPS_REF = 60;
+  const FRAME_S = 1 / FPS_REF;
+  const FLASH_PERIOD_FRAMES = 12;
+  const DEG_PER_FRAME = 2.5;
+
+  const FLASH_PERIOD_S = FLASH_PERIOD_FRAMES / FPS_REF;
+  const DEG_PER_S = DEG_PER_FRAME * FPS_REF;
+  const RAD_PER_S = DEG_PER_S * Math.PI / 180;
+  const RAD_PER_FRAME = DEG_PER_FRAME * Math.PI / 180;
+
+  const FADE_PER_S = 1.0;
+  const BAND_ALPHA = 0.9;
+  const MARK_W = 11;
+  const R2 = discR*0.92;
+  const R1 = discR*0.62;
+  const BAND_COLOR_MOVING = '#666666';
+  const BAND_COLOR_MOVING_LIGHT = '#c4c4c4';
+  const BAND_COLOR_REST = '#1a1a1a';
+  const SPAN_EPS = 0.0005;
+  const GHOST_COLOR = '#f3f3f2';
+
+  const DISC_LIT = '#ffffff';
+  const DISC_DARK = '#3a3a3a';
+  const GHOST_DARK = '#2a2a2a';
+
+  const ARROW_RED = '#d6433b';
+  const ARROW_BLUE = '#2f6fd0';
+  const ARROW_GREEN = '#2e9e5b';
+
+  const SCENES = [
+    {
+      flashOnFrames: 12, speedFactor: 1.0, marks: 12, lightBand: false,
+      label: 'Scene 1 — Continuous light',
+      status: 'Rotating', statusColor: 'info', motion: 'Blurred motion', motionColor: 'info',
+      desc: 'The light stays on continuously. The marks blur into motion and the rotation is clearly visible.',
+      arrow: null
+    },
+    {
+      flashOnFrames: 2, speedFactor: 1.0, marks: 12, lightBand: false,
+      label: 'Scene 2 — Strobe flashing (speed matches)',
+      status: 'Stays still', statusColor: 'success', motion: 'Stays still', motionColor: 'success',
+      desc: 'The light flashes at a fixed frequency. Each flash advances the disc by exactly one slot, so every mark is lit in the same place and the pattern stays still.',
+      arrow: null
+    },
+    {
+      flashOnFrames: 2, speedFactor: 0.98, marks: 12, lightBand: false,
+      label: 'Scene 3 — Rotation slightly slow',
+      status: 'Slow backward drift', statusColor: 'danger', motion: 'Drifts backward', motionColor: 'danger',
+      desc: 'The rotation is slightly slower than the matching speed, so each flash catches the marks a little behind and the pattern drifts slowly backward.',
+      arrow: 'ccw'
+    },
+    {
+      flashOnFrames: 2, speedFactor: 1.02, marks: 12, lightBand: false,
+      label: 'Scene 4 — Rotation slightly fast',
+      status: 'Slow forward drift', statusColor: 'warning', motion: 'Drifts forward', motionColor: 'warning',
+      desc: 'The rotation is slightly faster than the matching speed, so each flash catches the marks a little ahead and the pattern drifts slowly forward.',
+      arrow: 'cw'
+    },
+    {
+      flashOnFrames: 2, speedFactor: 1.0, marks: 4, lightBand: true,
+      label: 'Scene 5 — Printed pattern (4 marks)',
+      status: 'Stays still', statusColor: 'success', motion: 'Stays still', motionColor: 'success',
+      desc: 'A printed disc with only 4 marks, lit by the same strobe. This shows what happens when a printed pattern is used instead of LED scanning.',
+      arrow: null
+    }
+  ];
+
+  let sceneIdx = 1;
+  let playing = false;
+  let trailOn = true;
+  let discAngle = 0;
+  let strobePhase = 0;
+  let lastTs = 0;
+  let bands = [];
+  let currentBand = null;
+  let frameCount = 0;
+
+  const playBtn = document.getElementById('playBtn');
+  const playLabel = document.getElementById('playLabel');
+  const stepBtn = document.getElementById('stepBtn');
+  const resetBtn = document.getElementById('resetBtn');
+  const trailBtn = document.getElementById('trailBtn');
+  const trailLabel = document.getElementById('trailLabel');
+  const frameInfo = document.getElementById('frameInfo');
+  const sceneBtns = [
+    document.getElementById('scene1Btn'),
+    document.getElementById('scene2Btn'),
+    document.getElementById('scene3Btn'),
+    document.getElementById('scene4Btn'),
+    document.getElementById('scene5Btn')
+  ];
+  const sceneLabelEl = document.getElementById('sceneLabel');
+  const sceneStatusEl = document.getElementById('sceneStatus');
+  const sceneDescEl = document.getElementById('sceneDesc');
+
+  let standalone = false;
+  try { standalone = (window.self === window.top); } catch(e){ standalone = false; }
+
+  if(standalone){
+    document.documentElement.style.height = '100%';
+    document.body.style.height = '100%';
+    document.body.style.margin = '0';
+    let p = root.parentElement;
+    while(p && p !== document.body){ p.style.height = '100%'; p = p.parentElement; }
+    root.style.height = '100%';
+    root.style.maxHeight = '100%';
+    root.style.overflow = 'hidden';
+    canvasWrap.style.flex = '1 1 auto';
+  } else {
+    root.style.height = 'auto';
+    canvasWrap.style.flex = '0 0 auto';
+  }
+
+  // Scale the canvas to fill canvasWrap while keeping the 660:450 aspect ratio.
+  // canvasWrap's size is settled by flex layout, so measuring it does not create
+  // a circular dependency with the canvas size.
+  function fitCanvas(){
+    let availW, availH;
+    if(standalone){
+      const r = canvasWrap.getBoundingClientRect();
+      availW = r.width;
+      availH = r.height;
+    } else {
+      availW = root.clientWidth || W;
+      availH = H;
+    }
+    if(availW < 10 || availH < 10){
+      canvas.style.width = W + 'px';
+      canvas.style.height = H + 'px';
+      return;
+    }
+    let scale = Math.min(availW / W, availH / H);
+    if(!standalone) scale = Math.min(scale, 1);
+    if(scale < 0.2) scale = 0.2;
+    canvas.style.width = (W * scale) + 'px';
+    canvas.style.height = (H * scale) + 'px';
+  }
+
+  function statusBg(kind){
+    return { info:v('--color-background-info','#e6f1fb'), success:v('--color-background-success','#e1f5ee'),
+             warning:v('--color-background-warning','#faeeda'), danger:v('--color-background-danger','#fcebeb') }[kind];
+  }
+  function statusFg(kind){
+    return { info:v('--color-text-info','#185fa5'), success:v('--color-text-success','#0f6e56'),
+             warning:v('--color-text-warning','#854f0b'), danger:v('--color-text-danger','#a32d2d') }[kind];
+  }
+
+  function curScene(){ return SCENES[sceneIdx]; }
+  function nMarks(){ return curScene().marks; }
+
+  function flashOnS(){ return curScene().flashOnFrames / FPS_REF; }
+  function isLit(){ return strobePhase < flashOnS(); }
+  function movingBandColor(){ return curScene().lightBand ? BAND_COLOR_MOVING_LIGHT : BAND_COLOR_MOVING; }
+  function bandColor(angStart, angEnd){
+    return (Math.abs(angEnd - angStart) <= SPAN_EPS) ? BAND_COLOR_REST : movingBandColor();
+  }
+
+  function oneMark(){
+    ctx.beginPath();
+    ctx.moveTo(-MARK_W/2, -R2);
+    ctx.lineTo(MARK_W/2, -R2);
+    ctx.lineTo(MARK_W/2, -R1);
+    ctx.lineTo(-MARK_W/2, -R1);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  function drawMarksAt(angle, color, alpha){
+    const N = nMarks();
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.rotate(angle);
+    ctx.fillStyle = color;
+    for(let k=0;k<N;k++){
+      ctx.save();
+      ctx.rotate((k/N)*Math.PI*2);
+      oneMark();
+      ctx.restore();
+    }
+    ctx.restore();
+  }
+
+  function drawArc(angStart, angEnd, color, alpha){
+    const N = nMarks();
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = color;
+    const span = Math.max(0, angEnd - angStart);
+    const SUB = Math.max(1, Math.ceil(span / (0.5*Math.PI/180)));
+    for(let s=0;s<=SUB;s++){
+      const ang = angStart + span*(s/SUB);
+      ctx.save();
+      ctx.rotate(ang);
+      for(let k=0;k<N;k++){
+        ctx.save();
+        ctx.rotate((k/N)*Math.PI*2);
+        oneMark();
+        ctx.restore();
+      }
+      ctx.restore();
+    }
+    ctx.restore();
+  }
+
+  function arcArrow(originX, originY, radius, midA, halfSpan, ccw, color, lineW, headL, headW){
+    const aStart = midA - halfSpan;
+    const aEnd = midA + halfSpan;
+    ctx.save();
+    ctx.translate(originX, originY);
+    ctx.strokeStyle = color;
+    ctx.fillStyle = color;
+    ctx.lineWidth = lineW;
+    ctx.lineCap = 'round';
+
+    ctx.beginPath();
+    ctx.arc(0, 0, radius, aStart, aEnd, false);
+    ctx.stroke();
+
+    const headA = ccw ? aStart : aEnd;
+    const hx = radius * Math.cos(headA);
+    const hy = radius * Math.sin(headA);
+    const tang = ccw ? (headA - Math.PI/2) : (headA + Math.PI/2);
+    const tipx = hx + headL*Math.cos(tang);
+    const tipy = hy + headL*Math.sin(tang);
+    const perpA = tang + Math.PI/2;
+    const b1x = hx + headW*Math.cos(perpA);
+    const b1y = hy + headW*Math.sin(perpA);
+    const b2x = hx - headW*Math.cos(perpA);
+    const b2y = hy - headW*Math.sin(perpA);
+    ctx.beginPath();
+    ctx.moveTo(tipx, tipy);
+    ctx.lineTo(b1x, b1y);
+    ctx.lineTo(b2x, b2y);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function drawDriftArrow(dir, color){
+    const aR = discR + 26;
+    const midA = -Math.PI/4;
+    const halfSpan = Math.PI/5;
+    const ccw = (dir === 'ccw');
+    arcArrow(cx, cy, aR, midA, halfSpan, ccw, color, 4.5, 13, 8);
+
+    ctx.save();
+    ctx.fillStyle = color;
+    ctx.font = '600 14px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    const lx = cx + (discR + 4);
+    const ly = cy - (discR + 24);
+    ctx.fillText('Pattern Drift (' + (ccw ? 'CCW' : 'CW') + ')', lx, ly);
+    ctx.restore();
+  }
+
+  function drawRotateArrow(){
+    const aR = 30;
+    arcArrow(cx, cy, aR, -Math.PI/2, Math.PI*0.78, false, ARROW_GREEN, 3, 9, 5.5);
+    ctx.save();
+    ctx.fillStyle = ARROW_GREEN;
+    ctx.font = '600 12px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('Rotate (CW)', cx, cy + aR + 18);
+    ctx.restore();
+  }
+
+  function draw(){
+    ctx.clearRect(0,0,W,H);
+    const lit = isLit();
+    const darkDisc = (!trailOn && !lit);
+    const sc = curScene();
+    const continuous = sc.flashOnFrames >= FLASH_PERIOD_FRAMES;
+
+    ctx.save();
+    ctx.translate(cx, cy);
+
+    ctx.beginPath();
+    ctx.arc(0,0,discR,0,Math.PI*2);
+    ctx.fillStyle = darkDisc ? DISC_DARK : DISC_LIT;
+    ctx.fill();
+    ctx.strokeStyle = isDark ? '#55534c' : '#b4b2a9';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    drawMarksAt(discAngle, darkDisc ? GHOST_DARK : GHOST_COLOR, 1);
+
+    if(trailOn){
+      for(let i=0;i<bands.length;i++){
+        const b = bands[i];
+        drawArc(b.start, b.end, bandColor(b.start, b.end), BAND_ALPHA * b.alpha);
+      }
+    } else {
+      if(lit && currentBand){
+        drawArc(currentBand.start, currentBand.end, BAND_COLOR_REST, BAND_ALPHA);
+      }
+    }
+
+    ctx.beginPath();
+    ctx.arc(0,0,11,0,Math.PI*2);
+    ctx.fillStyle = isDark ? '#888' : '#a8a8a2';
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(0,0,7,0,Math.PI*2);
+    ctx.fillStyle = isDark ? '#aaa' : '#888';
+    ctx.fill();
+    ctx.restore();
+
+    drawRotateArrow();
+
+    if(sc.arrow){
+      drawDriftArrow(sc.arrow, sc.arrow === 'ccw' ? ARROW_RED : ARROW_BLUE);
+    }
+
+    ctx.fillStyle = colSub;
+    ctx.font = '12px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillText('Strobe disc ('+nMarks()+' marks)', cx, cy+discR+30);
+
+    if(lit){
+      const g = ctx.createRadialGradient(ledX, ledY, 4, cx, cy, discR*1.05);
+      const amber = isDark ? '255,210,120' : '250,199,120';
+      g.addColorStop(0, 'rgba('+amber+',0.42)');
+      g.addColorStop(1, 'rgba('+amber+',0)');
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.moveTo(ledX, ledY);
+      const ang = Math.atan2(cy-ledY, cx-ledX);
+      const spread = 0.34;
+      ctx.arc(cx, cy, discR*1.12, ang-spread, ang+spread);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    ctx.beginPath();
+    ctx.arc(ledX, ledY, 26, 0, Math.PI*2);
+    ctx.fillStyle = isDark ? '#222' : '#d8d6cf';
+    ctx.fill();
+    ctx.strokeStyle = isDark ? '#55534c' : '#b4b2a9';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.arc(ledX, ledY, 15, 0, Math.PI*2);
+    const onCol = '255,176,32';
+    const offCol = isDark ? '70,62,40' : '110,100,70';
+    ctx.fillStyle = lit ? 'rgb('+onCol+')' : 'rgb('+offCol+')';
+    ctx.fill();
+
+    if(lit){
+      ctx.beginPath();
+      ctx.arc(ledX, ledY, 25, 0, Math.PI*2);
+      ctx.strokeStyle = 'rgba('+onCol+',0.5)';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
+
+    ctx.fillStyle = colText;
+    ctx.font = '500 13px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('Strobe Light', ledX, ledY-36);
+    ctx.fillStyle = colSub;
+    ctx.font = '12px sans-serif';
+    ctx.fillText(continuous ? 'Continuous' : 'Flashing at a fixed rate', ledX, ledY+44);
+
+    const bx = 360, by = 290, bw = 270, bh = 96;
+    ctx.fillStyle = isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)';
+    ctx.beginPath();
+    ctx.roundRect(bx, by, bw, bh, 8);
+    ctx.fill();
+
+    ctx.textAlign = 'left';
+    ctx.fillStyle = colSub;
+    ctx.font = '12px sans-serif';
+    ctx.fillText('Light', bx+16, by+26);
+    ctx.fillText('Rotation speed', bx+16, by+52);
+    ctx.fillText('Apparent motion', bx+16, by+78);
+
+    let speedTxt;
+    if(sc.speedFactor > 1.0001) speedTxt = 'Slightly fast';
+    else if(sc.speedFactor < 0.9999) speedTxt = 'Slightly slow';
+    else speedTxt = 'Matched';
+
+    ctx.textAlign = 'right';
+    ctx.fillStyle = colText;
+    ctx.font = '500 13px sans-serif';
+    ctx.fillText(continuous ? 'Continuous' : (lit ? 'Flashing (ON)' : 'Flashing (off)'), bx+bw-16, by+26);
+    ctx.fillText(speedTxt, bx+bw-16, by+52);
+    ctx.fillStyle = statusFg(sc.motionColor);
+    ctx.fillText(sc.motion, bx+bw-16, by+78);
+  }
+
+  function update(dt){
+    const sc = curScene();
+    discAngle += RAD_PER_S * sc.speedFactor * dt;
+    strobePhase += dt;
+    while(strobePhase >= FLASH_PERIOD_S){
+      strobePhase -= FLASH_PERIOD_S;
+    }
+    const lit = isLit();
+
+    if(lit){
+      const startAng = discAngle - RAD_PER_FRAME * sc.speedFactor;
+      const band = { start: startAng, end: discAngle, alpha: 1 };
+      bands.push(band);
+      currentBand = band;
+    } else {
+      currentBand = null;
+    }
+
+    for(let i=0;i<bands.length;i++){
+      bands[i].alpha -= FADE_PER_S * dt;
+    }
+    bands = bands.filter(function(b){ return b.alpha > 0.01; });
+  }
+
+  function updateFrameInfo(){
+    const phaseFrame = Math.round(strobePhase / FRAME_S);
+    frameInfo.textContent = 'frame ' + Math.round(frameCount) + '  (phase ' + phaseFrame + '/' + FLASH_PERIOD_FRAMES + ')';
+  }
+
+  function syncSceneUI(){
+    const sc = curScene();
+    sceneLabelEl.textContent = sc.label;
+    sceneStatusEl.textContent = sc.status;
+    sceneStatusEl.style.background = statusBg(sc.statusColor);
+    sceneStatusEl.style.color = statusFg(sc.statusColor);
+    sceneDescEl.textContent = sc.desc;
+    for(let i=0;i<sceneBtns.length;i++){
+      sceneBtns[i].setAttribute('aria-pressed', sceneIdx === i ? 'true' : 'false');
+      sceneBtns[i].style.fontWeight = sceneIdx === i ? '600' : '400';
+    }
+  }
+
+  function loop(ts){
+    if(!lastTs) lastTs = ts;
+    let dt = (ts - lastTs)/1000;
+    lastTs = ts;
+    if(dt > 0.2) dt = 0.2;
+    if(playing){
+      update(dt);
+      frameCount += dt / FRAME_S;
+      updateFrameInfo();
+    }
+    draw();
+    requestAnimationFrame(loop);
+  }
+
+  function setPlayUI(){
+    playLabel.textContent = playing ? 'Pause' : 'Play';
+    playBtn.querySelector('i').className = playing ? 'ti ti-player-pause' : 'ti ti-player-play';
+  }
+
+  function resetState(){
+    discAngle = 0;
+    strobePhase = 0;
+    bands = [{ start: 0, end: 0, alpha: 1 }];
+    currentBand = { start: 0, end: 0, alpha: 1 };
+    frameCount = 0;
+  }
+
+  playBtn.addEventListener('click', function(){
+    playing = !playing;
+    setPlayUI();
+  });
+  stepBtn.addEventListener('click', function(){
+    if(playing){
+      playing = false;
+      setPlayUI();
+    }
+    update(FRAME_S);
+    frameCount = Math.round(frameCount) + 1;
+    updateFrameInfo();
+    draw();
+  });
+  resetBtn.addEventListener('click', function(){
+    resetState();
+    playing = false;
+    setPlayUI();
+    updateFrameInfo();
+    draw();
+  });
+  trailBtn.addEventListener('click', function(){
+    trailOn = !trailOn;
+    trailLabel.textContent = trailOn ? 'Afterimage: ON' : 'Afterimage: OFF';
+  });
+  for(let i=0;i<sceneBtns.length;i++){
+    (function(idx){
+      sceneBtns[idx].addEventListener('click', function(){
+        sceneIdx = idx;
+        syncSceneUI();
+        draw();
+      });
+    })(i);
+  }
+
+  resetState();
+  syncSceneUI();
+  updateFrameInfo();
+
+  fitCanvas();
+  window.addEventListener('resize', fitCanvas);
+  if(window.ResizeObserver){
+    const ro = new ResizeObserver(function(){ fitCanvas(); });
+    ro.observe(canvasWrap);
+  }
+  setTimeout(fitCanvas, 60);
+  setTimeout(fitCanvas, 250);
+
+  draw();
+  requestAnimationFrame(loop);
+})();
+</script>
+
+</body>
+</html>
