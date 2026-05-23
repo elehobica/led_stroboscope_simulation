@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LED Stroboscope Simulations</title>
+<style>
+  :root{
+    --bg:#f4f3ee;
+    --card:#ffffff;
+    --text:#1a1a1a;
+    --sub:#555;
+    --border:#c9c7be;
+    --accent:#2e9e5b;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:var(--bg);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:var(--text);}
+  header{padding:32px 20px 8px;text-align:center;}
+  header h1{margin:0 0 6px;font-size:26px;font-weight:600;}
+  header p{margin:0;font-size:14px;color:var(--sub);line-height:1.6;}
+  main{max-width:760px;margin:0 auto;padding:16px 20px 48px;}
+  .sim{margin:28px 0;background:var(--card);border:1px solid var(--border);
+    border-radius:10px;overflow:hidden;}
+  .sim-head{padding:14px 18px;border-bottom:1px solid var(--border);}
+  .sim-head h2{margin:0 0 4px;font-size:18px;font-weight:600;}
+  .sim-head p{margin:0;font-size:13px;color:var(--sub);line-height:1.5;}
+  .sim-frame{display:block;width:100%;border:0;}
+  footer{text-align:center;padding:24px 20px;font-size:12px;color:var(--sub);}
+  footer a{color:var(--accent);text-decoration:none;}
+  footer a:hover{text-decoration:underline;}
+</style>
+</head>
+<body>
+<header>
+  <h1>LED Stroboscope Simulations</h1>
+  <p>Interactive animations explaining the operating principle of an LED stroboscope disc.</p>
+</header>
+
+<main>
+  <section class="sim">
+    <div class="sim-head">
+      <h2>Traditional Stroboscope</h2>
+      <p>Strobe-lit rotating disc with marks. Switch between scenes to see how flash timing and rotation speed affect the apparent motion.</p>
+    </div>
+    <iframe class="sim-frame" src="trad_stroboscope_simulation.html" height="640" loading="lazy" title="Traditional Stroboscope simulation"></iframe>
+  </section>
+
+  <!-- Add more simulations by copying the <section class="sim"> block above
+       and pointing the iframe src at the new HTML file. -->
+</main>
+
+<footer>
+  <a href="https://github.com/elehobica/led_stroboscope_simulation">View source on GitHub</a>
+</footer>
+</body>
+</html>
