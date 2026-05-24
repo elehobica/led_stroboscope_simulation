@@ -63,33 +63,36 @@
 </div>
 
 <script>
-// Traditional (printed-pattern) disc. Light ON: marks are dark ('source-over'), the disc
-// surface is bright ('lighter'). Only this config differs from the LED page — the program
-// (strobe_core.js) is shared. (These values equal strobe_core.js's built-in defaults.)
+// LED stroboscope: the LEDs themselves emit light (pattern = 'lighter'); the board
+// between them stays dark (gap = 'source-over'). Only this config differs from the
+// traditional (printed-pattern) page — the program (strobe_core.js) is shared.
 window.STROBE_CONFIG = {
-  // --- Geometry ---
-  markInner: 0.62,
-  markOuter: 0.92,
-  markDuty: 0.3333,
+  // --- Geometry: LEDs are a short radial segment near the rim ---
+  markInner: 0.80,
+  markOuter: 0.90,
+  markDuty: 0.4,
 
   // --- Afterimage ON (light-accumulation model) ---
-  patternOp: 'source-over',     // dark marks pulled toward markColor
-  patternColor: '#1a1a1a',
-  patternColorAlt: '#5a5a5a',   // lightBand scenes (printed pattern)
-  patternAlphaPerS: 30,
-  gapOp: 'lighter',             // bright disc surface accumulates toward white
-  gapColor: '#111111',
-  gapAlphaPerS: 45,
-  initColor: '#888888',
-  decayColor: '#000000',
-  decayAlphaPerS: 0.2,          // afterimage fade speed (lower = longer-lasting)
+  // Light ON  : board -> black (gap, source-over), LED -> dark green (pattern, lighter)
+  // Light OFF : everything fades to black (decayColor)
+  patternOp: 'lighter',         // LEDs emit -> accumulate toward their color
+  patternColor: '#1e7a1e',      // LED while lit (afterimage ON): dark green
+  patternColorAlt: '#1e7a1e',
+  patternAlphaPerS: 45,
+  gapOp: 'source-over',         // board between LEDs -> pulled toward dark
+  gapColor: '#888888',          // board: black
+  gapAlphaPerS: 30,
+  initColor: '#000000',         // disc starts black
+  decayColor: '#000000',        // afterimage fades to fully black
+  decayAlphaPerS: 0.02,          // afterimage fade speed (lower = longer-lasting)
 
   // --- Afterimage OFF (instantaneous) ---
-  discLit: '#ffffff',           // disc surface while lit
-  discDark: '#3a3a3a',          // disc surface while dark
-  markLit: '#1a1a1a',           // marks while lit
-  markGhost: '#f3f3f2',         // faint mark position hint while lit
-  markOff: '#2a2a2a'            // marks while dark
+  // Light ON  : board black, LED green        Light OFF : board black, LED very dark green
+  discLit: '#000000',           // board while lit
+  discDark: '#000000',          // board while dark
+  markLit: '#33cf33',           // LED while lit: green
+  markGhost: '#33cf33',         // all LEDs light up green when lit (not just the swept band)
+  markOff: '#0c2e0c'            // LED while off: very dark green
 };
 </script>
 <script src="strobe_core.js"></script>
