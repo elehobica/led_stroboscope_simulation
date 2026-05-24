@@ -2,9 +2,13 @@
 
 Interactive web animations that explain the operating principle of an LED stroboscope disc, alongside a traditional strobe-lit disc for comparison.
 
-## 🔗 Live demo
+![LED stroboscope scene 1](images/led_stroboscope_scene_01.jpg)
+
+## 🔗 Live simulation
 
 **https://elehobica.github.io/led_stroboscope_simulation/**
+
+[![Live simulation screenshot](images/live_sim_screenshot.png)](https://elehobica.github.io/led_stroboscope_simulation/)
 
 The landing page shows both simulations side by side:
 
