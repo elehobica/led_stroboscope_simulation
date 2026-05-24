@@ -27,6 +27,30 @@ Both simulations share the same core scenes:
 
 Controls in each simulation: **Play / Pause**, **Reset**, scene buttons, and an **Afterimage** toggle.
 
+## Stride (mark spacing)
+
+*Stride* is how many slots apart the marks are placed around the disc.
+
+### Traditional: basically stride = 1
+
+The traditional disc is designed for **stride = 1** (Scenes 1–4): a mark in every slot.
+**Scene 5** demonstrates **stride = 4**. It still works in principle, but because the
+strobe lamp also lights the blank (white) areas between marks, the pattern looks washed out
+and faint. A printed disc therefore wants a dense pattern.
+
+### LED: stride = 4
+
+The LED simulation uses **stride = 4** for all scenes (real discs use roughly **stride = 3–4**).
+Since the LEDs light up against a **dark background**, widening the stride does not significantly
+hurt the visibility of the pattern — only the lit LEDs are bright, so the gaps stay dark instead
+of being washed out.
+
+Why give the LEDs a stride at all:
+
+- **Fewer LEDs** — spacing the marks out reduces the number of LEDs required.
+- **Concentric layout without physical interference** — the gaps left by the stride make room to
+  place the 33⅓ rpm and 45 rpm LED rings concentrically without them physically colliding.
+
 ## How it works
 
 - The program is consolidated in **`strobe_core.js`**, shared by both pages.
