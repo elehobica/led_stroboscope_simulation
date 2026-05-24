@@ -451,16 +451,34 @@
     ctx.restore();
   }
 
-  function drawRotateArrow(){
-    const aR = 30;
-    arcArrow(cx, cy, aR, -Math.PI/2, Math.PI*0.78, false, ARROW_GREEN, 3, 9, 5.5);
+  // The outer rim is drawn as alternating dark/light segments (15 deg each) and rotated at
+  // the TRUE rotation angle (continuous, not strobed). As it slides past the seemingly
+  // still marks, the disc clearly reads as spinning.
+  const RIM_R = discR;
+  const RIM_W = 2;                 // rim band thickness
+  const RIM_SEG = 96;              // segment degree = 360 / RIM_SEG
+  const RIM_DARK = '#055a05';
+  const RIM_LIGHT = '#33cf33';
+  // Inner rim near the center: independent width / segment count from the outer rim.
+  const INNER_RIM_R = 36;          // radius, clear of the hub and the marks (R1..R2)
+  const INNER_RIM_W = 2;           // inner rim band thickness
+  const INNER_RIM_SEG = 24;        // inner segment degree = 360 / INNER_RIM_SEG
+  function drawRim(radius, width, seg){
+    const segAng = 2*Math.PI/seg;
     ctx.save();
-    ctx.fillStyle = ARROW_GREEN;
-    ctx.font = '600 12px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText('Rotate (CW)', cx, cy + aR + 18);
+    ctx.lineWidth = width;
+    for(let i=0;i<seg;i++){
+      const a0 = -Math.PI/2 + discAngle + i*segAng;
+      ctx.beginPath();
+      ctx.arc(cx, cy, radius, a0, a0 + segAng + 0.004); // tiny overlap to avoid seams
+      ctx.strokeStyle = (i % 2 === 0) ? RIM_DARK : RIM_LIGHT;
+      ctx.stroke();
+    }
     ctx.restore();
+  }
+  function drawSpinRim(){
+    drawRim(RIM_R, RIM_W, RIM_SEG);                  // outer rim
+    drawRim(INNER_RIM_R, INNER_RIM_W, INNER_RIM_SEG); // inner rim
   }
 
   function draw(){
@@ -474,11 +492,6 @@
       ctx.drawImage(acc, 0, 0);
       ctx.save();
       ctx.translate(cx, cy);
-      ctx.strokeStyle = isDark ? '#55534c' : '#b4b2a9';
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.arc(0,0,discR,0,Math.PI*2);
-      ctx.stroke();
     } else {
       // Afterimage OFF: unchanged color-overlay rendering.
       const darkDisc = !lit;
@@ -489,9 +502,6 @@
       ctx.arc(0,0,discR,0,Math.PI*2);
       ctx.fillStyle = darkDisc ? DISC_DARK : DISC_LIT;
       ctx.fill();
-      ctx.strokeStyle = isDark ? '#55534c' : '#b4b2a9';
-      ctx.lineWidth = 1;
-      ctx.stroke();
 
       drawMarksAt(discAngle, darkDisc ? GHOST_DARK : GHOST_COLOR, 1);
 
@@ -511,7 +521,7 @@
     ctx.fill();
     ctx.restore();
 
-    drawRotateArrow();
+    drawSpinRim();
 
     if(sc.arrow){
       drawDriftArrow(sc.arrow, sc.arrow === 'ccw' ? ARROW_RED : ARROW_BLUE);
