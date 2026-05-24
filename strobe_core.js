@@ -141,7 +141,7 @@
   ];
 
   let sceneIdx = 1;
-  let playing = false;
+  let playing = true;
   let trailOn = true;
   let discAngle = 0;
   let strobePhase = 0;
@@ -679,6 +679,12 @@
     playBtn.querySelector('i').className = playing ? 'ti ti-player-pause' : 'ti ti-player-play';
   }
 
+  function setTrailUI(){
+    trailLabel.textContent = trailOn ? 'Afterimage: ON' : 'Afterimage: OFF';
+    // Show the button as "pressed" (grayed, like a selected scene) only while ON.
+    trailBtn.setAttribute('aria-pressed', trailOn ? 'true' : 'false');
+  }
+
   function resetState(){
     discAngle = 0;
     strobePhase = 0;
@@ -710,7 +716,7 @@
   });
   trailBtn.addEventListener('click', function(){
     trailOn = !trailOn;
-    trailLabel.textContent = trailOn ? 'Afterimage: ON' : 'Afterimage: OFF';
+    setTrailUI();
     if(trailOn){
       // Reset the accumulation buffer to the uniform initial color when switching back.
       accClear();
@@ -728,6 +734,8 @@
 
   resetState();
   syncSceneUI();
+  setPlayUI();
+  setTrailUI();
   updateFrameInfo();
 
   fitCanvas();
