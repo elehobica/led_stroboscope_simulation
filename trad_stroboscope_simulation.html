@@ -99,6 +99,9 @@
   const MARK_W = 11;
   const R2 = discR*0.92;
   const R1 = discR*0.62;
+  // Marks are radial sectors (wedges) whose sides are lines through the disc center.
+  // Half-angle is chosen so the wedge width equals MARK_W at the outer rim (R2).
+  const MARK_HALF_ANGLE = (MARK_W/2) / R2;
   const GHOST_COLOR = '#f3f3f2';
 
   // --- Afterimage OFF (color-overlay model, unchanged) ---
@@ -246,11 +249,13 @@
   function flashOnS(){ return curScene().flashOnFrames / FPS_REF; }
   function isLit(){ return strobePhase < flashOnS(); }
   function oneMark(){
+    // Drawn in a frame already rotated so the mark points up (center angle -90deg).
+    const ac = -Math.PI/2;
+    const a1 = ac - MARK_HALF_ANGLE, a2 = ac + MARK_HALF_ANGLE;
     ctx.beginPath();
-    ctx.moveTo(-MARK_W/2, -R2);
-    ctx.lineTo(MARK_W/2, -R2);
-    ctx.lineTo(MARK_W/2, -R1);
-    ctx.lineTo(-MARK_W/2, -R1);
+    ctx.moveTo(R2*Math.cos(a1), R2*Math.sin(a1));
+    ctx.arc(0, 0, R2, a1, a2, false);
+    ctx.arc(0, 0, R1, a2, a1, true);
     ctx.closePath();
     ctx.fill();
   }
@@ -294,16 +299,14 @@
 
   // --- Light-accumulation buffer helpers (Afterimage ON) ---
 
-  // Append one mark polygon (rotated by th) to the current path on context c.
+  // Append one wedge-shaped mark (centered at angle th) as a closed subpath on context c.
+  // Sides are radial lines through the disc center; width grows with radius.
   function addRotatedMark(c, th){
-    const cos = Math.cos(th), sin = Math.sin(th);
-    const xs = [-MARK_W/2, MARK_W/2, MARK_W/2, -MARK_W/2];
-    const ys = [-R2, -R2, -R1, -R1];
-    for(let i=0;i<4;i++){
-      const px = xs[i]*cos - ys[i]*sin;
-      const py = xs[i]*sin + ys[i]*cos;
-      if(i===0) c.moveTo(px, py); else c.lineTo(px, py);
-    }
+    const ac = th - Math.PI/2;
+    const a1 = ac - MARK_HALF_ANGLE, a2 = ac + MARK_HALF_ANGLE;
+    c.moveTo(R2*Math.cos(a1), R2*Math.sin(a1));
+    c.arc(0, 0, R2, a1, a2, false);
+    c.arc(0, 0, R1, a2, a1, true);
     c.closePath();
   }
 
