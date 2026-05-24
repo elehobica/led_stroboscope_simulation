@@ -88,20 +88,21 @@
 
   const FPS_REF = 60;
   const FRAME_S = 1 / FPS_REF;
-  const FLASH_PERIOD_FRAMES = 12;
-  const DEG_PER_FRAME = 2.5;
+  const FLASH_PERIOD_FRAMES = 16;        // 1/8 duty with flashOnFrames=2 (matches real hardware)
+  const DEG_PER_FRAME = 1.875;           // 1.875 x 16 = 30deg/flash = 2 slots at 24 marks -> stays still
 
   const FLASH_PERIOD_S = FLASH_PERIOD_FRAMES / FPS_REF;
   const DEG_PER_S = DEG_PER_FRAME * FPS_REF;
   const RAD_PER_S = DEG_PER_S * Math.PI / 180;
   const RAD_PER_FRAME = DEG_PER_FRAME * Math.PI / 180;
 
-  const MARK_W = 11;
   const R2 = discR*0.92;
   const R1 = discR*0.62;
   // Marks are radial sectors (wedges) whose sides are lines through the disc center.
-  // Half-angle is chosen so the wedge width equals MARK_W at the outer rim (R2).
-  const MARK_HALF_ANGLE = (MARK_W/2) / R2;
+  // MARK_DUTY = fraction of each angular slot (2*PI / marks) covered by the black mark.
+  // 0.5 => the black mark and the white gap are equally wide along the circumference.
+  const MARK_DUTY = 0.5;
+  function markHalfAngle(){ return Math.PI * MARK_DUTY / nMarks(); }
   const GHOST_COLOR = '#f3f3f2';
 
   // --- Afterimage OFF (color-overlay model, unchanged) ---
@@ -116,7 +117,7 @@
   // flashes the image fades toward DECAY_COLOR (composite 'source-over').
   // All rates are per-second and scaled by dt for a frame-rate-independent result.
   const DECAY_COLOR = '#000000';      // afterimage fades toward this between flashes
-  const DECAY_ALPHA_PER_S = 0.4;      // fade speed; lower = longer-lasting afterimage
+  const DECAY_ALPHA_PER_S = 0.3;      // fade speed; lower = longer-lasting afterimage
   const ADD_ALPHA_PER_S = 45;         // deposit speed while lit; high enough that the background saturates
   const LIGHT_BG = '#111111';         // disc surface (gaps) — bright, reaches white quickly
   const LIGHT_MARK = '#000000';       // marks — dim, brighten slowly so the pattern stays dark
@@ -128,7 +129,7 @@
 
   const SCENES = [
     {
-      flashOnFrames: 12, speedFactor: 1.0, marks: 24, lightBand: false,
+      flashOnFrames: 16, speedFactor: 1.0, marks: 24, lightBand: false,
       label: 'Scene 1 — Continuous light',
       status: 'Rotating', statusColor: 'info', motion: 'Blurred motion', motionColor: 'info',
       desc: 'The light stays on continuously. The marks blur into motion and the rotation is clearly visible.',
@@ -251,7 +252,8 @@
   function oneMark(){
     // Drawn in a frame already rotated so the mark points up (center angle -90deg).
     const ac = -Math.PI/2;
-    const a1 = ac - MARK_HALF_ANGLE, a2 = ac + MARK_HALF_ANGLE;
+    const h = markHalfAngle();
+    const a1 = ac - h, a2 = ac + h;
     ctx.beginPath();
     ctx.moveTo(R2*Math.cos(a1), R2*Math.sin(a1));
     ctx.arc(0, 0, R2, a1, a2, false);
@@ -303,7 +305,8 @@
   // Sides are radial lines through the disc center; width grows with radius.
   function addRotatedMark(c, th){
     const ac = th - Math.PI/2;
-    const a1 = ac - MARK_HALF_ANGLE, a2 = ac + MARK_HALF_ANGLE;
+    const h = markHalfAngle();
+    const a1 = ac - h, a2 = ac + h;
     c.moveTo(R2*Math.cos(a1), R2*Math.sin(a1));
     c.arc(0, 0, R2, a1, a2, false);
     c.arc(0, 0, R1, a2, a1, true);
