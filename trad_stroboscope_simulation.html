@@ -55,7 +55,7 @@
 
   <div id="rowControls" style="flex:0 0 auto; display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
     <button id="playBtn" style="display:inline-flex; align-items:center; gap:6px;"><i class="ti ti-player-play" aria-hidden="true"></i><span id="playLabel">Play</span></button>
-    <button id="stepBtn" style="display:inline-flex; align-items:center; gap:6px;"><i class="ti ti-player-track-next" aria-hidden="true"></i>&gt;|</button>
+    <button id="stepBtn" style="display:inline-flex; align-items:center; gap:6px;"><i class="ti ti-player-track-next" aria-hidden="true"></i>&gt; |</button>
     <button id="resetBtn" style="display:inline-flex; align-items:center; gap:6px;"><i class="ti ti-player-skip-back" aria-hidden="true"></i>Reset</button>
     <span id="frameInfo" style="font-size:13px; color:var(--color-text-secondary); font-variant-numeric:tabular-nums;">frame 0</span>
     <button id="trailBtn" style="display:inline-flex; align-items:center; gap:6px; margin-left:auto;"><i class="ti ti-ghost" aria-hidden="true"></i><span id="trailLabel">Afterimage: ON</span></button>
@@ -146,7 +146,7 @@
       label: 'Scene 2 — Strobe flashing (speed matches)',
       status: 'Stays still', statusColor: 'success', motion: 'Stays still', motionColor: 'success',
       desc: 'The light flashes at a fixed frequency. Each flash advances the disc by a whole number of slots, so every mark is lit in the same place and the pattern stays still.',
-      arrow: null
+      arrow: 'still'
     },
     {
       flashOnFrames: 2, speedFactor: 0.975, marks: 24, lightBand: false,
@@ -451,16 +451,27 @@
     ctx.restore();
   }
 
+  // Green "stays still" label at the same position as the drift label (no arc, no motion).
+  function drawStillLabel(){
+    ctx.save();
+    ctx.fillStyle = ARROW_GREEN;
+    ctx.font = '600 14px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('Pattern stays still', cx + (discR + 4), cy - (discR + 24));
+    ctx.restore();
+  }
+
   // The outer rim is drawn as alternating dark/light segments (15 deg each) and rotated at
   // the TRUE rotation angle (continuous, not strobed). As it slides past the seemingly
   // still marks, the disc clearly reads as spinning.
-  const RIM_R = discR;
+  const RIM_R = 80;
   const RIM_W = 2;                 // rim band thickness
   const RIM_SEG = 96;              // segment degree = 360 / RIM_SEG
-  const RIM_DARK = '#055a05';
-  const RIM_LIGHT = '#33cf33';
+  const RIM_DARK = '#111111';
+  const RIM_LIGHT = '#00a1e9';
   // Inner rim near the center: independent width / segment count from the outer rim.
-  const INNER_RIM_R = 36;          // radius, clear of the hub and the marks (R1..R2)
+  const INNER_RIM_R = 18;          // radius, clear of the hub and the marks (R1..R2)
   const INNER_RIM_W = 2;           // inner rim band thickness
   const INNER_RIM_SEG = 24;        // inner segment degree = 360 / INNER_RIM_SEG
   function drawRim(radius, width, seg){
@@ -476,9 +487,22 @@
     }
     ctx.restore();
   }
+  // Static (non-rotating) faint outer boundary at the disc edge — the original disc rim line.
+  const EDGE_R = discR;
+  const EDGE_COLOR = isDark ? '#55534c' : '#b4b2a9';
+  function drawDiscEdge(){
+    ctx.save();
+    ctx.strokeStyle = EDGE_COLOR;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(cx, cy, EDGE_R, 0, Math.PI*2);
+    ctx.stroke();
+    ctx.restore();
+  }
   function drawSpinRim(){
-    drawRim(RIM_R, RIM_W, RIM_SEG);                  // outer rim
-    drawRim(INNER_RIM_R, INNER_RIM_W, INNER_RIM_SEG); // inner rim
+    drawDiscEdge();                                   // static outer boundary
+    drawRim(RIM_R, RIM_W, RIM_SEG);                   // rotating rim
+    drawRim(INNER_RIM_R, INNER_RIM_W, INNER_RIM_SEG); // rotating inner rim
   }
 
   function draw(){
@@ -523,7 +547,9 @@
 
     drawSpinRim();
 
-    if(sc.arrow){
+    if(sc.arrow === 'still'){
+      drawStillLabel();
+    } else if(sc.arrow){
       drawDriftArrow(sc.arrow, sc.arrow === 'ccw' ? ARROW_RED : ARROW_BLUE);
     }
 
