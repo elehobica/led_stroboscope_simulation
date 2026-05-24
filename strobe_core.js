@@ -48,6 +48,7 @@
     markInner: 0.62,            // pattern inner radius (fraction of discR)
     markOuter: 0.92,            // pattern outer radius (fraction of discR)
     markDuty: 0.3333,           // pattern angular width as a fraction of one slot
+    showStrobeLight: true,      // draw the external strobe lamp (false for LEDs that self-emit)
     // Afterimage OFF (instantaneous) colors:
     discLit: '#ffffff',         // disc surface while lit
     discDark: '#3a3a3a',        // disc surface while dark
@@ -155,13 +156,17 @@
   const trailBtn = document.getElementById('trailBtn');
   const trailLabel = document.getElementById('trailLabel');
   const frameInfo = document.getElementById('frameInfo');
-  const sceneBtns = [
-    document.getElementById('scene1Btn'),
-    document.getElementById('scene2Btn'),
-    document.getElementById('scene3Btn'),
-    document.getElementById('scene4Btn'),
-    document.getElementById('scene5Btn')
-  ];
+  // Scene buttons are generated from SCENES so their count follows the config automatically.
+  const rowScenes = document.getElementById('rowScenes');
+  rowScenes.innerHTML = '';
+  const sceneBtns = SCENES.map(function(sc, i){
+    const b = document.createElement('button');
+    b.className = 'sceneBtn';
+    b.id = 'scene' + (i+1) + 'Btn';
+    b.textContent = 'Scene ' + (i+1);
+    rowScenes.appendChild(b);
+    return b;
+  });
   const sceneLabelEl = document.getElementById('sceneLabel');
   const sceneStatusEl = document.getElementById('sceneStatus');
   const sceneDescEl = document.getElementById('sceneDesc');
@@ -541,6 +546,7 @@
     const discCaption = markStep() > 1 ? 'Strobe disc (stride '+markStep()+')' : 'Strobe disc';
     ctx.fillText(discCaption, cx, cy+discR+30);
 
+    if(CFG.showStrobeLight){
     if(lit){
       const g = ctx.createRadialGradient(ledX, ledY, 4, cx, cy, discR*1.05);
       const amber = isDark ? '255,210,120' : '250,199,120';
@@ -586,6 +592,7 @@
     ctx.fillStyle = colSub;
     ctx.font = '12px sans-serif';
     ctx.fillText(continuous ? 'Continuous' : 'Flashing at a fixed rate', ledX, ledY+44);
+    }
 
     const bx = 360, by = 290, bw = 270, bh = 96;
     ctx.fillStyle = isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)';
