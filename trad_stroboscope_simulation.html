@@ -88,8 +88,8 @@
 
   const FPS_REF = 60;
   const FRAME_S = 1 / FPS_REF;
-  const FLASH_PERIOD_FRAMES = 16;        // 1/8 duty with flashOnFrames=2 (matches real hardware)
-  const DEG_PER_FRAME = 1.875;           // 1.875 x 16 = 30deg/flash = 2 slots at 24 marks -> stays still
+  const FLASH_PERIOD_FRAMES = 16;         // 1/8 duty with flashOnFrames=2 (matches real hardware)
+  const DEG_PER_FRAME = 360.0 / 24 / 16;  // 15deg/flash = 1 slots at 24 marks -> stays still
 
   const FLASH_PERIOD_S = FLASH_PERIOD_FRAMES / FPS_REF;
   const DEG_PER_S = DEG_PER_FRAME * FPS_REF;
@@ -162,10 +162,10 @@
       arrow: 'cw'
     },
     {
-      flashOnFrames: 2, speedFactor: 1.0, marks: 8, lightBand: true,
-      label: 'Scene 5 — Printed pattern (8 marks)',
+      flashOnFrames: 2, speedFactor: 1.0, marks: 24, markStep: 4, lightBand: true,
+      label: 'Scene 5 — Printed pattern (stride 4)',
       status: 'Stays still', statusColor: 'success', motion: 'Stays still', motionColor: 'success',
-      desc: 'A printed disc with only 8 marks, lit by the same strobe. This shows what happens when a printed pattern is used instead of LED scanning.',
+      desc: 'A printed disc with a sparse pattern (stride 4), lit by the same strobe. This shows what happens when a printed pattern is used instead of LED scanning.',
       arrow: null
     }
   ];
@@ -250,7 +250,13 @@
   }
 
   function curScene(){ return SCENES[sceneIdx]; }
+  // nMarks = grid resolution (sync + mark width are based on this; same for all scenes).
   function nMarks(){ return curScene().marks; }
+  // markStep = draw a mark every this many grid slots. 1 = every slot (LED disc);
+  // Scene 5 uses 4 to show a sparse printed pattern with the SAME individual mark shape.
+  function markStep(){ return curScene().markStep || 1; }
+  // Number of marks actually drawn (used for the caption).
+  function nDrawnMarks(){ return Math.ceil(nMarks() / markStep()); }
 
   function flashOnS(){ return curScene().flashOnFrames / FPS_REF; }
   function isLit(){ return strobePhase < flashOnS(); }
@@ -268,12 +274,12 @@
   }
 
   function drawMarksAt(angle, color, alpha){
-    const N = nMarks();
+    const N = nMarks(), step = markStep();
     ctx.save();
     ctx.globalAlpha = alpha;
     ctx.rotate(angle);
     ctx.fillStyle = color;
-    for(let k=0;k<N;k++){
+    for(let k=0;k<N;k+=step){
       ctx.save();
       ctx.rotate((k/N)*Math.PI*2);
       oneMark();
@@ -283,7 +289,7 @@
   }
 
   function drawArc(angStart, angEnd, color, alpha){
-    const N = nMarks();
+    const N = nMarks(), step = markStep();
     ctx.save();
     ctx.globalAlpha = alpha;
     ctx.fillStyle = color;
@@ -293,7 +299,7 @@
       const ang = angStart + span*(s/SUB);
       ctx.save();
       ctx.rotate(ang);
-      for(let k=0;k<N;k++){
+      for(let k=0;k<N;k+=step){
         ctx.save();
         ctx.rotate((k/N)*Math.PI*2);
         oneMark();
@@ -320,17 +326,17 @@
 
   // Path = whole disc with the marks punched out (fill with 'evenodd' → gaps only).
   function discMinusMarksPath(c, baseAng){
-    const N = nMarks();
+    const N = nMarks(), step = markStep();
     c.beginPath();
     c.arc(0,0,discR,0,Math.PI*2);
-    for(let k=0;k<N;k++){ addRotatedMark(c, baseAng + (k/N)*Math.PI*2); }
+    for(let k=0;k<N;k+=step){ addRotatedMark(c, baseAng + (k/N)*Math.PI*2); }
   }
 
   // Path = the marks only.
   function marksPath(c, baseAng){
-    const N = nMarks();
+    const N = nMarks(), step = markStep();
     c.beginPath();
-    for(let k=0;k<N;k++){ addRotatedMark(c, baseAng + (k/N)*Math.PI*2); }
+    for(let k=0;k<N;k+=step){ addRotatedMark(c, baseAng + (k/N)*Math.PI*2); }
   }
 
   // (Re)initialize the buffer to a fully dark disc (no accumulated light yet).
@@ -514,7 +520,10 @@
     ctx.font = '12px sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'alphabetic';
-    ctx.fillText('Strobe disc ('+nMarks()+' marks)', cx, cy+discR+30);
+    // Mark count is a modeling choice for clarity (not the real LED count), so show it
+    // only as the stride for the sparse printed-pattern scene; plain label otherwise.
+    const discCaption = markStep() > 1 ? 'Strobe disc (stride '+markStep()+')' : 'Strobe disc';
+    ctx.fillText(discCaption, cx, cy+discR+30);
 
     if(lit){
       const g = ctx.createRadialGradient(ledX, ledY, 4, cx, cy, discR*1.05);
