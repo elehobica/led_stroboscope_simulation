@@ -68,6 +68,11 @@
   const ctx = canvas.getContext('2d');
   const W = 660, H = 450;
 
+  // Offscreen buffer that accumulates the disc's light (Afterimage ON model).
+  const acc = document.createElement('canvas');
+  acc.width = W; acc.height = H;
+  const accCtx = acc.getContext('2d');
+
   const root = document.getElementById('strobeRoot');
   const canvasWrap = document.getElementById('canvasWrap');
 
@@ -91,20 +96,28 @@
   const RAD_PER_S = DEG_PER_S * Math.PI / 180;
   const RAD_PER_FRAME = DEG_PER_FRAME * Math.PI / 180;
 
-  const FADE_PER_S = 1.0;
-  const BAND_ALPHA = 0.9;
   const MARK_W = 11;
   const R2 = discR*0.92;
   const R1 = discR*0.62;
-  const BAND_COLOR_MOVING = '#666666';
-  const BAND_COLOR_MOVING_LIGHT = '#c4c4c4';
-  const BAND_COLOR_REST = '#1a1a1a';
-  const SPAN_EPS = 0.0005;
   const GHOST_COLOR = '#f3f3f2';
 
+  // --- Afterimage OFF (color-overlay model, unchanged) ---
+  const BAND_ALPHA = 0.9;
+  const BAND_COLOR_REST = '#1a1a1a';
   const DISC_LIT = '#ffffff';
   const DISC_DARK = '#3a3a3a';
   const GHOST_DARK = '#2a2a2a';
+
+  // --- Afterimage ON (light-accumulation model) ---
+  // The disc starts dark; each flash adds light (composite 'lighter'), and between
+  // flashes the image fades toward DECAY_COLOR (composite 'source-over').
+  // All rates are per-second and scaled by dt for a frame-rate-independent result.
+  const DECAY_COLOR = '#000000';      // afterimage fades toward this between flashes
+  const DECAY_ALPHA_PER_S = 0.4;      // fade speed; lower = longer-lasting afterimage
+  const ADD_ALPHA_PER_S = 45;         // deposit speed while lit; high enough that the background saturates
+  const LIGHT_BG = '#111111';         // disc surface (gaps) — bright, reaches white quickly
+  const LIGHT_MARK = '#000000';       // marks — dim, brighten slowly so the pattern stays dark
+  const LIGHT_MARK_LIGHT = '#5a5a5a'; // Scene 5 (printed pattern): lighter marks, washes out more
 
   const ARROW_RED = '#d6433b';
   const ARROW_BLUE = '#2f6fd0';
@@ -154,7 +167,6 @@
   let discAngle = 0;
   let strobePhase = 0;
   let lastTs = 0;
-  let bands = [];
   let currentBand = null;
   let frameCount = 0;
 
@@ -233,11 +245,6 @@
 
   function flashOnS(){ return curScene().flashOnFrames / FPS_REF; }
   function isLit(){ return strobePhase < flashOnS(); }
-  function movingBandColor(){ return curScene().lightBand ? BAND_COLOR_MOVING_LIGHT : BAND_COLOR_MOVING; }
-  function bandColor(angStart, angEnd){
-    return (Math.abs(angEnd - angStart) <= SPAN_EPS) ? BAND_COLOR_REST : movingBandColor();
-  }
-
   function oneMark(){
     ctx.beginPath();
     ctx.moveTo(-MARK_W/2, -R2);
@@ -283,6 +290,92 @@
       ctx.restore();
     }
     ctx.restore();
+  }
+
+  // --- Light-accumulation buffer helpers (Afterimage ON) ---
+
+  // Append one mark polygon (rotated by th) to the current path on context c.
+  function addRotatedMark(c, th){
+    const cos = Math.cos(th), sin = Math.sin(th);
+    const xs = [-MARK_W/2, MARK_W/2, MARK_W/2, -MARK_W/2];
+    const ys = [-R2, -R2, -R1, -R1];
+    for(let i=0;i<4;i++){
+      const px = xs[i]*cos - ys[i]*sin;
+      const py = xs[i]*sin + ys[i]*cos;
+      if(i===0) c.moveTo(px, py); else c.lineTo(px, py);
+    }
+    c.closePath();
+  }
+
+  // Path = whole disc with the marks punched out (fill with 'evenodd' → gaps only).
+  function discMinusMarksPath(c, baseAng){
+    const N = nMarks();
+    c.beginPath();
+    c.arc(0,0,discR,0,Math.PI*2);
+    for(let k=0;k<N;k++){ addRotatedMark(c, baseAng + (k/N)*Math.PI*2); }
+  }
+
+  // Path = the marks only.
+  function marksPath(c, baseAng){
+    const N = nMarks();
+    c.beginPath();
+    for(let k=0;k<N;k++){ addRotatedMark(c, baseAng + (k/N)*Math.PI*2); }
+  }
+
+  // (Re)initialize the buffer to a fully dark disc (no accumulated light yet).
+  function accClear(){
+    accCtx.setTransform(1,0,0,1,0,0);
+    accCtx.clearRect(0,0,W,H);
+    accCtx.save();
+    accCtx.translate(cx, cy);
+    accCtx.globalCompositeOperation = 'source-over';
+    accCtx.globalAlpha = 1;
+    accCtx.fillStyle = DECAY_COLOR;
+    accCtx.beginPath();
+    accCtx.arc(0,0,discR,0,Math.PI*2);
+    accCtx.fill();
+    accCtx.restore();
+  }
+
+  // Light-off frame: pull the disc toward DECAY_COLOR (source-over) so the afterimage fades.
+  function accDecay(dt){
+    const a = Math.min(1, DECAY_ALPHA_PER_S * dt);
+    accCtx.save();
+    accCtx.translate(cx, cy);
+    accCtx.globalCompositeOperation = 'source-over';
+    accCtx.globalAlpha = a;
+    accCtx.fillStyle = DECAY_COLOR;
+    accCtx.beginPath();
+    accCtx.arc(0,0,discR,0,Math.PI*2);
+    accCtx.fill();
+    accCtx.restore();
+  }
+
+  // Light-on frame: additively deposit light (lighter). Background (gaps) is bright and
+  // the marks are dimmer, painted as a non-overlapping partition so the pattern stays dark.
+  function accAdd(angPrev, angCur, dt){
+    const sc = curScene();
+    const a = Math.min(1, ADD_ALPHA_PER_S * dt);
+    accCtx.save();
+    accCtx.translate(cx, cy);
+    accCtx.globalCompositeOperation = 'lighter';
+
+    // Background = disc minus marks at the current angle (bright).
+    accCtx.globalAlpha = a;
+    accCtx.fillStyle = LIGHT_BG;
+    discMinusMarksPath(accCtx, angCur);
+    accCtx.fill('evenodd');
+
+    // Marks (dimmer), swept across the rotation covered this frame to blur motion.
+    accCtx.fillStyle = sc.lightBand ? LIGHT_MARK_LIGHT : LIGHT_MARK;
+    const span = Math.abs(angCur - angPrev);
+    const SUB = Math.max(1, Math.ceil(span / (0.5*Math.PI/180)));
+    for(let s=0;s<=SUB;s++){
+      accCtx.globalAlpha = a/(SUB+1);
+      marksPath(accCtx, angPrev + (angCur-angPrev)*(s/SUB));
+      accCtx.fill();
+    }
+    accCtx.restore();
   }
 
   function arcArrow(originX, originY, radius, midA, halfSpan, ccw, color, lineW, headL, headW){
@@ -352,34 +445,41 @@
   function draw(){
     ctx.clearRect(0,0,W,H);
     const lit = isLit();
-    const darkDisc = (!trailOn && !lit);
     const sc = curScene();
     const continuous = sc.flashOnFrames >= FLASH_PERIOD_FRAMES;
 
-    ctx.save();
-    ctx.translate(cx, cy);
-
-    ctx.beginPath();
-    ctx.arc(0,0,discR,0,Math.PI*2);
-    ctx.fillStyle = darkDisc ? DISC_DARK : DISC_LIT;
-    ctx.fill();
-    ctx.strokeStyle = isDark ? '#55534c' : '#b4b2a9';
-    ctx.lineWidth = 1;
-    ctx.stroke();
-
-    drawMarksAt(discAngle, darkDisc ? GHOST_DARK : GHOST_COLOR, 1);
-
     if(trailOn){
-      for(let i=0;i<bands.length;i++){
-        const b = bands[i];
-        drawArc(b.start, b.end, bandColor(b.start, b.end), BAND_ALPHA * b.alpha);
-      }
+      // Afterimage ON: the disc surface is the light-accumulation buffer.
+      ctx.drawImage(acc, 0, 0);
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.strokeStyle = isDark ? '#55534c' : '#b4b2a9';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.arc(0,0,discR,0,Math.PI*2);
+      ctx.stroke();
     } else {
+      // Afterimage OFF: unchanged color-overlay rendering.
+      const darkDisc = !lit;
+      ctx.save();
+      ctx.translate(cx, cy);
+
+      ctx.beginPath();
+      ctx.arc(0,0,discR,0,Math.PI*2);
+      ctx.fillStyle = darkDisc ? DISC_DARK : DISC_LIT;
+      ctx.fill();
+      ctx.strokeStyle = isDark ? '#55534c' : '#b4b2a9';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+
+      drawMarksAt(discAngle, darkDisc ? GHOST_DARK : GHOST_COLOR, 1);
+
       if(lit && currentBand){
         drawArc(currentBand.start, currentBand.end, BAND_COLOR_REST, BAND_ALPHA);
       }
     }
 
+    // Center hub — drawn fresh each frame on top of the disc in both modes.
     ctx.beginPath();
     ctx.arc(0,0,11,0,Math.PI*2);
     ctx.fillStyle = isDark ? '#888' : '#a8a8a2';
@@ -477,6 +577,7 @@
 
   function update(dt){
     const sc = curScene();
+    const angPrev = discAngle;
     discAngle += RAD_PER_S * sc.speedFactor * dt;
     strobePhase += dt;
     while(strobePhase >= FLASH_PERIOD_S){
@@ -484,19 +585,15 @@
     }
     const lit = isLit();
 
-    if(lit){
-      const startAng = discAngle - RAD_PER_FRAME * sc.speedFactor;
-      const band = { start: startAng, end: discAngle, alpha: 1 };
-      bands.push(band);
-      currentBand = band;
-    } else {
+    if(trailOn){
+      // Light-accumulation model: add light while lit, fade toward dark otherwise.
+      if(lit) accAdd(angPrev, discAngle, dt);
+      else accDecay(dt);
       currentBand = null;
+    } else {
+      // Color-overlay model: a single current band drawn while lit.
+      currentBand = lit ? { start: discAngle - RAD_PER_FRAME * sc.speedFactor, end: discAngle } : null;
     }
-
-    for(let i=0;i<bands.length;i++){
-      bands[i].alpha -= FADE_PER_S * dt;
-    }
-    bands = bands.filter(function(b){ return b.alpha > 0.01; });
   }
 
   function updateFrameInfo(){
@@ -539,9 +636,10 @@
   function resetState(){
     discAngle = 0;
     strobePhase = 0;
-    bands = [{ start: 0, end: 0, alpha: 1 }];
-    currentBand = { start: 0, end: 0, alpha: 1 };
+    currentBand = null;
     frameCount = 0;
+    accClear();
+    if(trailOn && isLit()) accAdd(discAngle, discAngle, FRAME_S);
   }
 
   playBtn.addEventListener('click', function(){
@@ -568,6 +666,11 @@
   trailBtn.addEventListener('click', function(){
     trailOn = !trailOn;
     trailLabel.textContent = trailOn ? 'Afterimage: ON' : 'Afterimage: OFF';
+    if(trailOn){
+      // Re-seed the accumulation buffer when switching back to the light model.
+      accClear();
+      if(isLit()) accAdd(discAngle, discAngle, FRAME_S);
+    }
   });
   for(let i=0;i<sceneBtns.length;i++){
     (function(idx){
