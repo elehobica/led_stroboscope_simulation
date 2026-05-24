@@ -63,36 +63,35 @@
 </div>
 
 <script>
-// LED stroboscope: the LEDs themselves emit light (pattern = 'lighter'); the board
-// between them stays dark (gap = 'source-over'). Only this config differs from the
-// traditional (printed-pattern) page — the program (strobe_core.js) is shared.
+// LED stroboscope: the LEDs glow at their lit color and the board stays dark — both use
+// 'source-over' so each region converges to its color (the LED saturates at green and does
+// NOT keep brightening toward white, unlike additive 'lighter'). The green afterimage trail
+// comes from the decay between flashes. Only this config differs from the traditional page —
+// the program (strobe_core.js) is shared.
 window.STROBE_CONFIG = {
-  // --- Geometry: LEDs are a short radial segment near the rim ---
-  markInner: 0.80,
-  markOuter: 0.90,
-  markDuty: 0.4,
+  // --- Geometry (pattern radial position & width) ---
+  markInner: 0.80,              // pattern inner radius (fraction of discR)
+  markOuter: 0.90,              // pattern outer radius (fraction of discR)
+  markDuty: 0.4,                // pattern angular width as a fraction of one slot
 
   // --- Afterimage ON (light-accumulation model) ---
-  // Light ON  : board -> black (gap, source-over), LED -> dark green (pattern, lighter)
-  // Light OFF : everything fades to black (decayColor)
-  patternOp: 'lighter',         // LEDs emit -> accumulate toward their color
-  patternColor: '#1e7a1e',      // LED while lit (afterimage ON): dark green
-  patternColorAlt: '#1e7a1e',
-  patternAlphaPerS: 45,
-  gapOp: 'source-over',         // board between LEDs -> pulled toward dark
-  gapColor: '#888888',          // board: black
-  gapAlphaPerS: 30,
-  initColor: '#000000',         // disc starts black
-  decayColor: '#000000',        // afterimage fades to fully black
-  decayAlphaPerS: 0.02,          // afterimage fade speed (lower = longer-lasting)
+  patternOp: 'source-over',     // composite op for the pattern region while lit
+  patternColor: '#33b833',      // pattern color in normal scenes (lightBand:false)
+  patternColorAlt: '#33b833',   // pattern color only in scenes with lightBand:true (Scene 5)
+  patternAlpha: 0.9,           // pattern blend per frame (0..1)
+  gapOp: 'source-over',         // composite op for the non-pattern region while lit
+  gapColor: '#000000',          // non-pattern (background) fill color
+  gapAlpha: 0.005,               // non-pattern blend per frame (0..1)
+  initColor: '#000000',         // disc fill before any flash
+  decayColor: '#000000',        // afterimage fades toward this between flashes
+  decayAlpha: 0.005,          // afterimage fade per frame (0..1); lower = longer-lasting
 
   // --- Afterimage OFF (instantaneous) ---
-  // Light ON  : board black, LED green        Light OFF : board black, LED very dark green
-  discLit: '#000000',           // board while lit
-  discDark: '#000000',          // board while dark
-  markLit: '#33cf33',           // LED while lit: green
-  markGhost: '#33cf33',         // all LEDs light up green when lit (not just the swept band)
-  markOff: '#0c2e0c'            // LED while off: very dark green
+  discLit: '#000000',           // disc surface while lit
+  discDark: '#000000',          // disc surface while dark
+  markLit: '#33cf33',           // pattern while lit
+  markGhost: '#33cf33',         // all marks shown while lit; set = markLit to light every one
+  markOff: '#0c2e0c'            // pattern while dark
 };
 </script>
 <script src="strobe_core.js"></script>

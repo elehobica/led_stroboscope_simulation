@@ -38,26 +38,26 @@
   //   Printed pattern : pattern = 'source-over' (dark marks), gap = 'lighter' (bright surface)
   //   LED stroboscope : pattern = 'lighter' (emitting LEDs), gap = 'source-over' (dark board)
   const CFG = Object.assign({
-    patternOp: 'source-over',   // composite for the pattern region while lit
-    patternColor: '#1a1a1a',    // pattern fill color
-    patternColorAlt: '#5a5a5a', // pattern fill for scenes with lightBand:true
-    patternAlphaPerS: 30,       // pattern deposit speed (alpha/sec)
-    gapOp: 'lighter',           // composite for the non-pattern region while lit
-    gapColor: '#111111',        // non-pattern fill color
-    gapAlphaPerS: 45,           // non-pattern deposit speed (alpha/sec)
-    markInner: 0.62,            // pattern inner radius (fraction of discR) — radial length start
-    markOuter: 0.92,            // pattern outer radius (fraction of discR) — radial length end
+    patternOp: 'source-over',   // composite op for the pattern region while lit
+    patternColor: '#1a1a1a',    // pattern color in normal scenes (lightBand:false)
+    patternColorAlt: '#5a5a5a', // pattern color only in scenes with lightBand:true (Scene 5)
+    patternAlpha: 0.5,          // pattern blend per frame (0..1)
+    gapOp: 'lighter',           // composite op for the non-pattern region while lit
+    gapColor: '#111111',        // non-pattern (background) fill color
+    gapAlpha: 0.75,             // non-pattern blend per frame (0..1)
+    markInner: 0.62,            // pattern inner radius (fraction of discR)
+    markOuter: 0.92,            // pattern outer radius (fraction of discR)
     markDuty: 0.3333,           // pattern angular width as a fraction of one slot
     // Afterimage OFF (instantaneous) colors:
-    discLit: '#ffffff',         // disc surface while the light is ON
-    discDark: '#3a3a3a',        // disc surface while the light is OFF
-    markLit: '#1a1a1a',         // pattern (mark/LED) while the light is ON  (the lit band)
-    markOff: '#2a2a2a',         // pattern (mark/LED) while the light is OFF
-    markGhost: '#f3f3f2',       // all marks shown faintly while lit (set = markLit to make every LED light up)
+    discLit: '#ffffff',         // disc surface while lit
+    discDark: '#3a3a3a',        // disc surface while dark
+    markLit: '#1a1a1a',         // pattern while lit
+    markOff: '#2a2a2a',         // pattern while dark
+    markGhost: '#f3f3f2',       // all marks shown while lit; set = markLit to light every one
     // Disc base colors (afterimage ON accumulation buffer):
     initColor: '#888888',       // disc fill before any flash
     decayColor: '#000000',      // afterimage fades toward this between flashes
-    decayAlphaPerS: 0.2,        // afterimage fade speed (alpha/sec); lower = longer-lasting
+    decayAlpha: 0.0033,         // afterimage fade per frame (0..1); lower = longer-lasting
     scenes: null                // optional per-page scene list (null => built-in default)
   }, (typeof window !== 'undefined' && window.STROBE_CONFIG) || {});
 
@@ -86,9 +86,11 @@
   // All rates are per-second and scaled by dt for a frame-rate-independent result.
   const INIT_DISC_COLOR = CFG.initColor;  // disc fill before any flash
   const DECAY_COLOR = CFG.decayColor;     // afterimage fades toward this between flashes
-  const DECAY_ALPHA_PER_S = CFG.decayAlphaPerS; // fade speed; lower = longer-lasting afterimage
-  const ADD_ALPHA_PER_S = CFG.gapAlphaPerS;      // non-pattern deposit speed while lit
-  const MARK_ALPHA_PER_S = CFG.patternAlphaPerS; // pattern deposit speed while lit
+  // Per-reference-frame blend factors (0..1). Scaled by dt*FPS_REF so the look is the same
+  // at any real frame rate; at the nominal 60fps the applied alpha equals the value below.
+  const DECAY_ALPHA = CFG.decayAlpha;    // afterimage fade per frame; lower = longer-lasting
+  const GAP_ALPHA = CFG.gapAlpha;        // non-pattern blend per frame while lit
+  const PATTERN_ALPHA = CFG.patternAlpha;// pattern blend per frame while lit
   const GAP_OP = CFG.gapOp;                       // composite op for the non-pattern region
   const PATTERN_OP = CFG.patternOp;               // composite op for the pattern region
   const LIGHT_BG = CFG.gapColor;                  // non-pattern fill color
@@ -308,6 +310,7 @@
 
   // (Re)initialize the buffer to a uniform mid-gray disc (no accumulated light yet).
   function accClear(){
+    decayDebt = 0;
     accCtx.setTransform(1,0,0,1,0,0);
     accCtx.clearRect(0,0,W,H);
     accCtx.save();
@@ -322,8 +325,18 @@
   }
 
   // Light-off frame: pull the disc toward DECAY_COLOR (source-over) so the afterimage fades.
+  // In the 8-bit buffer, any per-frame fill (no matter how small the alpha) still drops a
+  // bright pixel by ~1 LSB after quantization, so the fade rate is clamped to ~1 LSB/frame
+  // (~4.3s at 60fps) and shrinking decayAlpha further has no effect. To fade SLOWER than that
+  // floor, we accumulate the intended fade in decayDebt and apply it only once per several
+  // frames (when it reaches DECAY_STEP_MIN) — skipping frames avoids the per-frame -1 LSB.
+  let decayDebt = 0;
+  const DECAY_STEP_MIN = 0.01;
   function accDecay(dt){
-    const a = Math.min(1, DECAY_ALPHA_PER_S * dt);
+    decayDebt += DECAY_ALPHA * dt * FPS_REF;
+    if(decayDebt < DECAY_STEP_MIN) return; // not yet enough to move the 8-bit buffer
+    const a = Math.min(1, decayDebt);
+    decayDebt = 0;
     accCtx.save();
     accCtx.translate(cx, cy);
     accCtx.globalCompositeOperation = 'source-over';
@@ -340,8 +353,8 @@
   //   LED stroboscope -> gap 'source-over' (toward dark), pattern 'lighter' (emitting)
   function accAdd(angPrev, angCur, dt){
     const sc = curScene();
-    const aBg = Math.min(1, ADD_ALPHA_PER_S * dt);
-    const aMark = Math.min(1, MARK_ALPHA_PER_S * dt);
+    const aBg = Math.min(1, GAP_ALPHA * dt * FPS_REF);
+    const aMark = Math.min(1, PATTERN_ALPHA * dt * FPS_REF);
     accCtx.save();
     accCtx.translate(cx, cy);
 

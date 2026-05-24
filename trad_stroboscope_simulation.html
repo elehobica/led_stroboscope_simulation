@@ -67,29 +67,29 @@
 // surface is bright ('lighter'). Only this config differs from the LED page — the program
 // (strobe_core.js) is shared. (These values equal strobe_core.js's built-in defaults.)
 window.STROBE_CONFIG = {
-  // --- Geometry ---
-  markInner: 0.62,
-  markOuter: 0.92,
-  markDuty: 0.3333,
+  // --- Geometry (pattern radial position & width) ---
+  markInner: 0.62,              // pattern inner radius (fraction of discR)
+  markOuter: 0.92,              // pattern outer radius (fraction of discR)
+  markDuty: 0.3333,             // pattern angular width as a fraction of one slot
 
   // --- Afterimage ON (light-accumulation model) ---
-  patternOp: 'source-over',     // dark marks pulled toward markColor
-  patternColor: '#1a1a1a',
-  patternColorAlt: '#5a5a5a',   // lightBand scenes (printed pattern)
-  patternAlphaPerS: 30,
-  gapOp: 'lighter',             // bright disc surface accumulates toward white
-  gapColor: '#111111',
-  gapAlphaPerS: 45,
-  initColor: '#888888',
-  decayColor: '#000000',
-  decayAlphaPerS: 0.2,          // afterimage fade speed (lower = longer-lasting)
+  patternOp: 'source-over',     // composite op for the pattern region while lit
+  patternColor: '#1a1a1a',      // pattern color in normal scenes (lightBand:false)
+  patternColorAlt: '#5a5a5a',   // pattern color only in scenes with lightBand:true (Scene 5)
+  patternAlpha: 0.5,            // pattern blend per frame (0..1)
+  gapOp: 'lighter',             // composite op for the non-pattern region while lit
+  gapColor: '#111111',          // non-pattern (background) fill color
+  gapAlpha: 0.75,               // non-pattern blend per frame (0..1)
+  initColor: '#888888',         // disc fill before any flash
+  decayColor: '#000000',        // afterimage fades toward this between flashes
+  decayAlpha: 0.0033,           // afterimage fade per frame (0..1); lower = longer-lasting
 
   // --- Afterimage OFF (instantaneous) ---
   discLit: '#ffffff',           // disc surface while lit
   discDark: '#3a3a3a',          // disc surface while dark
-  markLit: '#1a1a1a',           // marks while lit
-  markGhost: '#f3f3f2',         // faint mark position hint while lit
-  markOff: '#2a2a2a'            // marks while dark
+  markLit: '#1a1a1a',           // pattern while lit
+  markGhost: '#f3f3f2',         // all marks shown while lit; set = markLit to light every one
+  markOff: '#2a2a2a'            // pattern while dark
 };
 </script>
 <script src="strobe_core.js"></script>

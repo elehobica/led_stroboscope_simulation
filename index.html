@@ -19,8 +19,9 @@
   header{padding:32px 20px 8px;text-align:center;}
   header h1{margin:0 0 6px;font-size:26px;font-weight:600;}
   header p{margin:0;font-size:14px;color:var(--sub);line-height:1.6;}
-  main{max-width:760px;margin:0 auto;padding:16px 20px 48px;}
-  .sim{margin:28px 0;background:var(--card);border:1px solid var(--border);
+  main{max-width:1340px;margin:0 auto;padding:16px 20px 48px;}
+  .sims{display:flex;gap:24px;flex-wrap:wrap;align-items:flex-start;justify-content:center;}
+  .sim{flex:1 1 520px;background:var(--card);border:1px solid var(--border);
     border-radius:10px;overflow:hidden;}
   .sim-head{padding:14px 18px;border-bottom:1px solid var(--border);}
   .sim-head h2{margin:0 0 4px;font-size:18px;font-weight:600;}
@@ -38,16 +39,26 @@
 </header>
 
 <main>
-  <section class="sim">
-    <div class="sim-head">
-      <h2>Traditional Stroboscope</h2>
-      <p>Strobe-lit rotating disc with marks. Switch between scenes to see how flash timing and rotation speed affect the apparent motion.</p>
-    </div>
-    <iframe class="sim-frame" src="trad_stroboscope_simulation.html" height="640" loading="lazy" title="Traditional Stroboscope simulation"></iframe>
-  </section>
+  <div class="sims">
+    <section class="sim">
+      <div class="sim-head">
+        <h2>Traditional Stroboscope</h2>
+        <p>Strobe-lit rotating disc with printed marks. Switch between scenes to see how flash timing and rotation speed affect the apparent motion.</p>
+      </div>
+      <iframe class="sim-frame" src="trad_stroboscope_simulation.html" height="640" loading="lazy" title="Traditional Stroboscope simulation"></iframe>
+    </section>
 
-  <!-- Add more simulations by copying the <section class="sim"> block above
-       and pointing the iframe src at the new HTML file. -->
+    <section class="sim">
+      <div class="sim-head">
+        <h2>LED Stroboscope</h2>
+        <p>Rotating disc whose LEDs themselves flash. The same scenes show how the flashing LEDs appear to stand still or drift.</p>
+      </div>
+      <iframe class="sim-frame" src="led_stroboscope_simulation.html" height="640" loading="lazy" title="LED Stroboscope simulation"></iframe>
+    </section>
+
+    <!-- Add more simulations by copying a <section class="sim"> block above
+         and pointing the iframe src at the new HTML file. -->
+  </div>
 </main>
 
 <footer>
