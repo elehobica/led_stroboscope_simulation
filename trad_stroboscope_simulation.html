@@ -101,7 +101,7 @@
   // Marks are radial sectors (wedges) whose sides are lines through the disc center.
   // MARK_DUTY = fraction of each angular slot (2*PI / marks) covered by the black mark.
   // 0.5 => the black mark and the white gap are equally wide along the circumference.
-  const MARK_DUTY = 0.5;
+  const MARK_DUTY = 0.3333;
   function markHalfAngle(){ return Math.PI * MARK_DUTY / nMarks(); }
   const GHOST_COLOR = '#f3f3f2';
 
@@ -113,14 +113,19 @@
   const GHOST_DARK = '#2a2a2a';
 
   // --- Afterimage ON (light-accumulation model) ---
-  // The disc starts dark; each flash adds light (composite 'lighter'), and between
-  // flashes the image fades toward DECAY_COLOR (composite 'source-over').
+  // The disc starts dark. While lit, the gaps (disc minus marks) accumulate light with
+  // composite 'lighter' (toward white), while the marks are painted with 'source-over'
+  // toward a dark gray. Using 'source-over' for the marks lets a previously brightened
+  // region (e.g. left bright after Scene 3/4 drift) be pulled back DOWN to dark when the
+  // marks land there repeatedly — which additive 'lighter' (black adds nothing) cannot do.
+  // Between flashes the whole disc fades toward DECAY_COLOR (source-over).
   // All rates are per-second and scaled by dt for a frame-rate-independent result.
   const DECAY_COLOR = '#000000';      // afterimage fades toward this between flashes
-  const DECAY_ALPHA_PER_S = 0.3;      // fade speed; lower = longer-lasting afterimage
-  const ADD_ALPHA_PER_S = 45;         // deposit speed while lit; high enough that the background saturates
+  const DECAY_ALPHA_PER_S = 0.2;      // fade speed; lower = longer-lasting afterimage
+  const ADD_ALPHA_PER_S = 45;         // gap brightening speed while lit (lighter); high enough to saturate
+  const MARK_ALPHA_PER_S = 30;        // mark darkening speed while lit (source-over toward LIGHT_MARK)
   const LIGHT_BG = '#111111';         // disc surface (gaps) — bright, reaches white quickly
-  const LIGHT_MARK = '#000000';       // marks — dim, brighten slowly so the pattern stays dark
+  const LIGHT_MARK = '#1a1a1a';       // marks — dark gray the mark region is pulled toward (source-over)
   const LIGHT_MARK_LIGHT = '#5a5a5a'; // Scene 5 (printed pattern): lighter marks, washes out more
 
   const ARROW_RED = '#d6433b';
@@ -143,14 +148,14 @@
       arrow: null
     },
     {
-      flashOnFrames: 2, speedFactor: 0.99, marks: 24, lightBand: false,
+      flashOnFrames: 2, speedFactor: 0.98, marks: 24, lightBand: false,
       label: 'Scene 3 — Rotation slightly slow',
       status: 'Slow backward drift', statusColor: 'danger', motion: 'Drifts backward', motionColor: 'danger',
       desc: 'The rotation is slightly slower than the matching speed, so each flash catches the marks a little behind and the pattern drifts slowly backward.',
       arrow: 'ccw'
     },
     {
-      flashOnFrames: 2, speedFactor: 1.01, marks: 24, lightBand: false,
+      flashOnFrames: 2, speedFactor: 1.02, marks: 24, lightBand: false,
       label: 'Scene 4 — Rotation slightly fast',
       status: 'Slow forward drift', statusColor: 'warning', motion: 'Drifts forward', motionColor: 'warning',
       desc: 'The rotation is slightly faster than the matching speed, so each flash catches the marks a little ahead and the pattern drifts slowly forward.',
@@ -357,27 +362,30 @@
     accCtx.restore();
   }
 
-  // Light-on frame: additively deposit light (lighter). Background (gaps) is bright and
-  // the marks are dimmer, painted as a non-overlapping partition so the pattern stays dark.
+  // Light-on frame. Gaps brighten with 'lighter'; marks are pulled toward a dark gray
+  // with 'source-over' (so an already-bright region can be darkened back down).
   function accAdd(angPrev, angCur, dt){
     const sc = curScene();
-    const a = Math.min(1, ADD_ALPHA_PER_S * dt);
+    const aBg = Math.min(1, ADD_ALPHA_PER_S * dt);
+    const aMark = Math.min(1, MARK_ALPHA_PER_S * dt);
     accCtx.save();
     accCtx.translate(cx, cy);
-    accCtx.globalCompositeOperation = 'lighter';
 
-    // Background = disc minus marks at the current angle (bright).
-    accCtx.globalAlpha = a;
+    // Background = disc minus marks at the current angle: additive (toward white).
+    accCtx.globalCompositeOperation = 'lighter';
+    accCtx.globalAlpha = aBg;
     accCtx.fillStyle = LIGHT_BG;
     discMinusMarksPath(accCtx, angCur);
     accCtx.fill('evenodd');
 
-    // Marks (dimmer), swept across the rotation covered this frame to blur motion.
+    // Marks: source-over toward a dark gray, swept across the rotation covered this
+    // frame to blur motion. Overlapping (stationary) marks converge to the dark gray.
+    accCtx.globalCompositeOperation = 'source-over';
     accCtx.fillStyle = sc.lightBand ? LIGHT_MARK_LIGHT : LIGHT_MARK;
     const span = Math.abs(angCur - angPrev);
     const SUB = Math.max(1, Math.ceil(span / (0.5*Math.PI/180)));
     for(let s=0;s<=SUB;s++){
-      accCtx.globalAlpha = a/(SUB+1);
+      accCtx.globalAlpha = aMark/(SUB+1);
       marksPath(accCtx, angPrev + (angCur-angPrev)*(s/SUB));
       accCtx.fill();
     }
