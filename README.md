@@ -87,3 +87,8 @@ No build step is required. Either:
   ```
 
   then open `http://localhost:8000/`.
+
+## Links
+
+- **Hackaday project:** https://hackaday.io/project/205727-led-stroboscope
+- **Etsy shop:** https://elehobica.etsy.com/
