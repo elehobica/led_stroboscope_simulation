@@ -125,38 +125,38 @@
 
   const SCENES = [
     {
-      flashOnFrames: 12, speedFactor: 1.0, marks: 12, lightBand: false,
+      flashOnFrames: 12, speedFactor: 1.0, marks: 24, lightBand: false,
       label: 'Scene 1 — Continuous light',
       status: 'Rotating', statusColor: 'info', motion: 'Blurred motion', motionColor: 'info',
       desc: 'The light stays on continuously. The marks blur into motion and the rotation is clearly visible.',
       arrow: null
     },
     {
-      flashOnFrames: 2, speedFactor: 1.0, marks: 12, lightBand: false,
+      flashOnFrames: 2, speedFactor: 1.0, marks: 24, lightBand: false,
       label: 'Scene 2 — Strobe flashing (speed matches)',
       status: 'Stays still', statusColor: 'success', motion: 'Stays still', motionColor: 'success',
-      desc: 'The light flashes at a fixed frequency. Each flash advances the disc by exactly one slot, so every mark is lit in the same place and the pattern stays still.',
+      desc: 'The light flashes at a fixed frequency. Each flash advances the disc by a whole number of slots, so every mark is lit in the same place and the pattern stays still.',
       arrow: null
     },
     {
-      flashOnFrames: 2, speedFactor: 0.98, marks: 12, lightBand: false,
+      flashOnFrames: 2, speedFactor: 0.99, marks: 24, lightBand: false,
       label: 'Scene 3 — Rotation slightly slow',
       status: 'Slow backward drift', statusColor: 'danger', motion: 'Drifts backward', motionColor: 'danger',
       desc: 'The rotation is slightly slower than the matching speed, so each flash catches the marks a little behind and the pattern drifts slowly backward.',
       arrow: 'ccw'
     },
     {
-      flashOnFrames: 2, speedFactor: 1.02, marks: 12, lightBand: false,
+      flashOnFrames: 2, speedFactor: 1.01, marks: 24, lightBand: false,
       label: 'Scene 4 — Rotation slightly fast',
       status: 'Slow forward drift', statusColor: 'warning', motion: 'Drifts forward', motionColor: 'warning',
       desc: 'The rotation is slightly faster than the matching speed, so each flash catches the marks a little ahead and the pattern drifts slowly forward.',
       arrow: 'cw'
     },
     {
-      flashOnFrames: 2, speedFactor: 1.0, marks: 4, lightBand: true,
-      label: 'Scene 5 — Printed pattern (4 marks)',
+      flashOnFrames: 2, speedFactor: 1.0, marks: 8, lightBand: true,
+      label: 'Scene 5 — Printed pattern (8 marks)',
       status: 'Stays still', statusColor: 'success', motion: 'Stays still', motionColor: 'success',
-      desc: 'A printed disc with only 4 marks, lit by the same strobe. This shows what happens when a printed pattern is used instead of LED scanning.',
+      desc: 'A printed disc with only 8 marks, lit by the same strobe. This shows what happens when a printed pattern is used instead of LED scanning.',
       arrow: null
     }
   ];
